@@ -2,7 +2,7 @@
   "name": "create-load-getter",
   "type": "module",
   "main": "dist/index.js",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "scripts": {
     "test": "bun --env-file=../../.env.test test",
     "build": "pnpm run build:compile && pnpm run build:types",

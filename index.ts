@@ -23,7 +23,7 @@ type TResult<Result> = [
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export const createLoadGetter = <Result>(fn: () => PromiseLike<Result>, repeatTimeout = 500): TResult<Result> => {
+export default function createLoadGetter<Result>(fn: () => PromiseLike<Result>, repeatTimeout = 500): TResult<Result> {
     let data: any;
     let timeout = 0;
     let isLoading = false;
@@ -33,29 +33,36 @@ export const createLoadGetter = <Result>(fn: () => PromiseLike<Result>, repeatTi
     const noActivityTimeout = 10 * 60 * 1000;
 
     const get = async (times = 0): Promise<Result> => {
-        if (Date.now() - timeout > lastUsage) {
+        if (Date.now() - noActivityTimeout > lastUsage) {
             isLoading = false;
             await load()
         }
         lastUsage = Date.now();
         if (timeout && Date.now() - timeout > 2 * 1000 * 1000) {
-            console.log('Load Getter: no actual data', fn.name, times);
             await wait(1000);
             return get(times + 1);
         }
 
-        if (!data) {
+        if (!data && !isLoading) {
+            isLoading = true;
+            load()
             return fn();
+        }
+        if (data) {
+            return data;
+        }
+
+        await wait(100);
+
+        if (!data) {
+            await wait(1000);
+            return get(times + 1);
         }
 
         return data;
     }
 
     const load = async () => {
-        if (isLoading) {
-            const res = await fn();
-            return res as Result;
-        }
         if (interval) {
             clearInterval(interval);
         }
@@ -63,7 +70,6 @@ export const createLoadGetter = <Result>(fn: () => PromiseLike<Result>, repeatTi
         isLoading = true;
         interval = setInterval(async () => {
             if (Date.now() - noActivityTimeout > lastUsage) {
-                // console.log('stop loading, due no activity...')
                 clearInterval(interval)
                 return;
             }
@@ -71,11 +77,11 @@ export const createLoadGetter = <Result>(fn: () => PromiseLike<Result>, repeatTi
             if (!prevItems.some((p) => JSON.stringify(p) === JSON.stringify(data))) {
                 prevItems = prevItems.concat(data).slice(-50);
             }
-            // console.log(`Loaded: ${fn.toString()} in ${getDuration()}s`)
+            // console.log(`Loaded: ${fn.toString()}, ${JSON.stringify(data)}`)
         }, repeatTimeout)
 
-        const res = await fn();
-        return res as Result;
+        data = await fn();
+        return data as Result;
     }
 
     const stop = () => {
